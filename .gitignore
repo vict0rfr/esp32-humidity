@@ -1,0 +1,31 @@
+# Ignore build output directories
+/build/
+/sdkconfig
+
+# Ignore object files and binaries
+*.o
+*.a
+*.elf
+
+# Ignore dependency files
+*.d
+
+# Ignore generated files
+*.bin
+*.map
+*.hex
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+
+# Ignore Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+
+# Ignore IDE specific files
+.vscode/
+.idea/
+*.swp
+.DS_Store
