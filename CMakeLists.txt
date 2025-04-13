@@ -1,3 +1,6 @@
-idf_component_register(SRCS "blink.c"
-                    INCLUDE_DIRS "."
-                    REQUIRES driver esp_driver_spi u8g2 u8g2-hal-esp-idf)
+# The following five lines of boilerplate have to be in your project's
+# CMakeLists in this exact order for cmake to work correctly
+cmake_minimum_required(VERSION 3.16)
+
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+project(blink)
