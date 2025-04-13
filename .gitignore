@@ -1,6 +1,8 @@
 # Ignore build output directories
 /build/
 /sdkconfig
+/u8g2/
+/u8g2-hal-esp-idf/
 
 # Ignore object files and binaries
 *.o
