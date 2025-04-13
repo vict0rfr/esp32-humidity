@@ -1,5 +1,5 @@
 # Ignore build output directories
-/build/
+build/
 /sdkconfig
 /u8g2/
 
