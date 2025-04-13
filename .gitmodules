@@ -1,0 +1,3 @@
+[submodule "components/u8g2-hal-esp-idf"]
+	path = components/u8g2-hal-esp-idf
+	url = https://github.com/vict0rfr/u8g2-hal-esp-idf
