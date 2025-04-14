@@ -19,7 +19,6 @@
 #define PIN_DC 19
 #define PIN_RESET 20
 
-
 void app_main(void) {
     u8g2_esp32_hal_t u8g2_esp32_hal = U8G2_ESP32_HAL_DEFAULT;
     u8g2_esp32_hal.clk   = PIN_CLK;
