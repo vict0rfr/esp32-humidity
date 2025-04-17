@@ -2,6 +2,7 @@
 build/
 /sdkconfig
 /u8g2/
+*.old
 
 # Ignore object files and binaries
 *.o
