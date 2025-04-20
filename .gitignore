@@ -2,6 +2,7 @@
 build/
 /u8g2/
 *.old
+wifi_config.h
 
 # Ignore object files and binaries
 *.o

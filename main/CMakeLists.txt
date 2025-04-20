@@ -1,4 +1,4 @@
-idf_component_register(SRCS "esp32-humidity.c"
+idf_component_register(SRCS "main.c" "wifi_driver.c"
                     INCLUDE_DIRS "."
                    REQUIRES driver
                              esp_driver_spi
