@@ -40,10 +40,10 @@ try:
             # Open the audio file in binary mode and send its contents
         with open(AUDIO_FILE, 'rb') as audio_file:
             print(f"Sending WAV file: {AUDIO_FILE}")
-            data = audio_file.read(8096)  # Read in chunks
+            data = audio_file.read(16384)  # Read in chunks
             while data:
                 client_socket.sendall(data)
-                data = audio_file.read(8096)
+                data = audio_file.read(16384)
 
         print("Finished sending WAV file.")
 

@@ -132,7 +132,7 @@ esp_err_t connect_tcp_server(screen_update_callback_t update_screen){
 	struct sockaddr_in serverInfo = {0};
 
     serverInfo.sin_family = AF_INET;
-    serverInfo.sin_addr.s_addr = inet_addr("192.168.1.249");
+    serverInfo.sin_addr.s_addr = inet_addr("192.168.1.59");
     serverInfo.sin_port = htons(12345);
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -155,7 +155,7 @@ esp_err_t connect_tcp_server(screen_update_callback_t update_screen){
 }
 
 static void handle_server_data(int sock, screen_update_callback_t update_screen){
-    static char readBuffer[8096] = {0};
+    static char readBuffer[16384] = {0};
     static bool header_parsed = false;
     static wav_header_t wav_header;
 

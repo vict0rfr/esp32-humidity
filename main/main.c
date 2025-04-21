@@ -20,6 +20,16 @@ static void i2c_master_init(void) {
 
 //init screen and u8g2
 static void u8g2_init(void) {
+    gpio_reset_pin(PIN_RESET);
+    gpio_set_direction(PIN_RESET, GPIO_MODE_OUTPUT);
+    
+    // Perform manual reset sequence
+    gpio_set_level(PIN_RESET, 0);
+    vTaskDelay(pdMS_TO_TICKS(20)); // Keep low for 20ms
+    gpio_set_level(PIN_RESET, 1);
+    vTaskDelay(pdMS_TO_TICKS(100)); // Wait 100ms after reset before init
+    // --- End Manual Reset ---
+    
     u8g2_esp32_hal_t u8g2_esp32_hal = U8G2_ESP32_HAL_DEFAULT;
     u8g2_esp32_hal.clk   = PIN_CLK;
     u8g2_esp32_hal.mosi  = PIN_MOSI;
@@ -106,13 +116,16 @@ void app_main(void) {
 	if (WIFI_SUCCESS != status)
 	{
 		ESP_LOGI(WIFI_TAG, "Failed to associate to AP, dying...");
+        update_screen("WiFi Failed");
 		return;
 	}
-	
+    
+	esp_wifi_set_ps(WIFI_PS_NONE);
 	status = connect_tcp_server(update_screen);
 	if (TCP_SUCCESS != status)
 	{
 		ESP_LOGI(WIFI_TAG, "Failed to connect to remote server, dying...");
+        update_screen("TCP Failed");
 		return;
 	}
 
