@@ -46,7 +46,7 @@ static const char *BT_TAG = "BT_PAIRING";
 
 static void i2c_master_init(void);
 static void u8g2_init(void);
-void update_screen(const char *message);
+void update_screen(void *message, const char *type);
 static esp_err_t dht20_read(float *temperature, float *humidity);
 void app_main(void);
 

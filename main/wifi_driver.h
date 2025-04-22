@@ -18,7 +18,7 @@
 #include "u8g2_esp32_hal.h" 
 
 static const char *WIFI_TAG = "WIFI";
-typedef void (*screen_update_callback_t)(const char *message);
+typedef void (*screen_update_callback_t)(void *message, const char *type);
 
 typedef enum {
     WIFI_SUCCESS = 1 << 0,

@@ -19,17 +19,7 @@ static void i2c_master_init(void) {
 }
 
 //init screen and u8g2
-static void u8g2_init(void) {
-    gpio_reset_pin(PIN_RESET);
-    gpio_set_direction(PIN_RESET, GPIO_MODE_OUTPUT);
-    
-    // Perform manual reset sequence
-    gpio_set_level(PIN_RESET, 0);
-    vTaskDelay(pdMS_TO_TICKS(20)); // Keep low for 20ms
-    gpio_set_level(PIN_RESET, 1);
-    vTaskDelay(pdMS_TO_TICKS(100)); // Wait 100ms after reset before init
-    // --- End Manual Reset ---
-    
+static void u8g2_init(void) {    
     u8g2_esp32_hal_t u8g2_esp32_hal = U8G2_ESP32_HAL_DEFAULT;
     u8g2_esp32_hal.clk   = PIN_CLK;
     u8g2_esp32_hal.mosi  = PIN_MOSI;
@@ -44,11 +34,23 @@ static void u8g2_init(void) {
     u8g2_SetPowerSave(&u8g2, 0);
 }
 
-void update_screen(const char *message) {
+void update_screen(void *message, const char *type) {
+    char buffer[64]; // Buffer to hold the formatted string
+
+    if (strcmp(type, "int") == 0) {
+        snprintf(buffer, sizeof(buffer), "%u", *(unsigned int *)message); // Format as integer
+    } else if (strcmp(type, "float") == 0) {
+        snprintf(buffer, sizeof(buffer), "%.2f", *(float *)message); // Format as float
+    } else if (strcmp(type, "string") == 0) {
+        snprintf(buffer, sizeof(buffer), "%s", (char *)message); // Format as string
+    } else {
+        snprintf(buffer, sizeof(buffer), "Unknown Type");
+    }
+
     u8g2_ClearBuffer(&u8g2);
     u8g2_SetFont(&u8g2, u8g2_font_ncenB12_tr);
     u8g2_DrawStr(&u8g2, 0, 15, "Message:");
-    u8g2_DrawStr(&u8g2, 0, 35, message);
+    u8g2_DrawStr(&u8g2, 0, 35, buffer); // Draw the formatted string
     u8g2_SendBuffer(&u8g2);
 }
 
@@ -116,35 +118,34 @@ void app_main(void) {
 	if (WIFI_SUCCESS != status)
 	{
 		ESP_LOGI(WIFI_TAG, "Failed to associate to AP, dying...");
-        update_screen("WiFi Failed");
+        update_screen("WiFi Failed", "string");
 		return;
 	}
     
-	esp_wifi_set_ps(WIFI_PS_NONE);
 	status = connect_tcp_server(update_screen);
 	if (TCP_SUCCESS != status)
 	{
 		ESP_LOGI(WIFI_TAG, "Failed to connect to remote server, dying...");
-        update_screen("TCP Failed");
+        update_screen("TCP Failed", "string");
 		return;
 	}
 
-    // float temperature, humidity;
+    float temperature, humidity;
 
-    // while (1) {
-    //     if (dht20_read(&temperature, &humidity) == ESP_OK) {
-    //         u8g2_ClearBuffer(&u8g2);
-    //         char temp_str[16], hum_str[16];
-    //         snprintf(temp_str, sizeof(temp_str), "Temp: %.2fC", temperature);
-    //         snprintf(hum_str, sizeof(hum_str), "Hum: %.2f%%", humidity);
-    //         u8g2_SetFont(&u8g2, u8g2_font_ncenB12_tr);
-    //         u8g2_DrawStr(&u8g2, 0, 15, temp_str);
-    //         u8g2_DrawStr(&u8g2, 0, 35, hum_str);
-    //         u8g2_SendBuffer(&u8g2);
-    //     } else {
-    //         ESP_LOGE(DHT20_TAG, "Failed to read from DHT20");
-    //     }
-
-    //     vTaskDelay(pdMS_TO_TICKS(1000)); // Wait 2 seconds before next read
-    // }
+    while (1) {
+        if (dht20_read(&temperature, &humidity) == ESP_OK) {
+            u8g2_ClearBuffer(&u8g2);
+            char temp_str[16], hum_str[16];
+            snprintf(temp_str, sizeof(temp_str), "Temp: %.2fC", temperature);
+            snprintf(hum_str, sizeof(hum_str), "Hum: %.2f%%", humidity);
+            u8g2_SetFont(&u8g2, u8g2_font_ncenB12_tr);
+            u8g2_DrawStr(&u8g2, 0, 15, temp_str);
+            u8g2_DrawStr(&u8g2, 0, 35, hum_str);
+            u8g2_SendBuffer(&u8g2);
+        } else {
+            ESP_LOGE(DHT20_TAG, "Failed to read from DHT20");
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Wait 2 seconds before next read
+    }
 }

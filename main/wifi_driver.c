@@ -89,11 +89,16 @@ esp_err_t connect_wifi(void){
         },
     };
 
+    esp_wifi_set_ps(WIFI_PS_NONE);
+
     // set the wifi controller to be a station
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 
     // set the wifi config
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+
+    // set the bandwidth to HT40
+    ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT40));
 
     // start the wifi driver
     ESP_ERROR_CHECK(esp_wifi_start());
@@ -111,6 +116,12 @@ esp_err_t connect_wifi(void){
      * happened. */
     if (bits & WIFI_SUCCESS) {
         ESP_LOGI(WIFI_TAG, "Connected to ap");
+
+        wifi_ap_record_t ap_info;
+        if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
+            ESP_LOGI("WIFI", "RSSI: %d dBm", ap_info.rssi);
+        }
+
         status = WIFI_SUCCESS;
     } else if (bits & WIFI_FAILURE) {
         ESP_LOGI(WIFI_TAG, "Failed to connect to ap");
@@ -132,7 +143,7 @@ esp_err_t connect_tcp_server(screen_update_callback_t update_screen){
 	struct sockaddr_in serverInfo = {0};
 
     serverInfo.sin_family = AF_INET;
-    serverInfo.sin_addr.s_addr = inet_addr("192.168.1.59");
+    serverInfo.sin_addr.s_addr = inet_addr("192.168.1.249");
     serverInfo.sin_port = htons(12345);
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -155,15 +166,19 @@ esp_err_t connect_tcp_server(screen_update_callback_t update_screen){
 }
 
 static void handle_server_data(int sock, screen_update_callback_t update_screen){
-    static char readBuffer[16384] = {0};
+    static char readBuffer[1440] = {0};
     static bool header_parsed = false;
     static wav_header_t wav_header;
+
+    uint32_t total_bytes = 0; // Total bytes received
+    uint32_t start_time = xTaskGetTickCount(); // Start time for speed calculation
 
     while (1) {
         // Clear the buffer and read data from the server
         bzero(readBuffer, sizeof(readBuffer));
         int r = read(sock, readBuffer, sizeof(readBuffer));
         if (r > 0) {
+            total_bytes+=r;
             ESP_LOGI(WIFI_TAG, "Received %d bytes from server", r);
 
             if (!header_parsed) {
@@ -176,13 +191,27 @@ static void handle_server_data(int sock, screen_update_callback_t update_screen)
             }
 
             if (update_screen) {
-                update_screen(readBuffer);
+                update_screen(readBuffer, "string");
             }
+        } else if (r == 0) {
+            ESP_LOGI(WIFI_TAG, "Server closed connection");
+            break;
         } else {
             ESP_LOGE(WIFI_TAG, "Failed to read from server");
             break;
         }
-
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Wait 1 second before reading again
     }
+
+    // Calculate and log the final average download speed
+    uint32_t total_time = (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS; // Total time in milliseconds
+    unsigned int avg_speed_kbps;
+    if (total_time > 0) {
+        avg_speed_kbps = (total_bytes * 8.0) / total_time; // Average speed in kbps
+        ESP_LOGI(WIFI_TAG, "Average Download Speed: %u kbps. Total time: %u", avg_speed_kbps, (unsigned int)total_time / 1000);
+    } else {
+        ESP_LOGI(WIFI_TAG, "No data received or transfer time too short to calculate speed.");
+    }
+
+    ESP_LOGI(WIFI_TAG, "Total Bytes Received: %u", (unsigned int)total_bytes);
+    update_screen(&avg_speed_kbps, "int");
 }
