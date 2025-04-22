@@ -28,22 +28,6 @@ typedef enum {
     MAX_FAILURES = 10
 } wifi_status_t;
 
-typedef struct {
-    uint32_t chunk_id;       // "RIFF"
-    uint32_t chunk_size;
-    uint32_t format;         // "WAVE"
-    uint32_t subchunk1_id;   // "fmt"
-    uint32_t subchunk1_size;
-    uint16_t audio_format;
-    uint16_t num_channels;
-    uint32_t sample_rate;
-    uint32_t byte_rate;
-    uint16_t block_align;
-    uint16_t bits_per_sample;
-    uint32_t subchunk2_id;   // "data"
-    uint32_t subchunk2_size;
-} wav_header_t;
-
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 esp_err_t connect_wifi(void);

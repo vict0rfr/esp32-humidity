@@ -28,19 +28,6 @@ static void ip_event_handler(void* arg, esp_event_base_t event_base, int32_t eve
     }
 }
 
-bool parse_wav_header(const uint8_t *data, wav_header_t *header) {
-    memcpy(header, data, sizeof(wav_header_t));
-    if (header->chunk_id != 0x46464952 || header->format != 0x45564157) { // "RIFF" and "WAVE"
-        ESP_LOGE(WIFI_TAG, "Invalid WAV file");
-        return false;
-    }
-    ESP_LOGI(WIFI_TAG, "Sample Rate: %u, Channels: %u, Bits per Sample: %u",
-        (unsigned int)header->sample_rate,
-        (unsigned int)header->num_channels,
-        (unsigned int)header->bits_per_sample);
-    return true;
-}
-
 //use ret and esp_loge to gracefeully handle errors, wifi errors are not fatal.
 esp_err_t connect_wifi(void){
 	int status = WIFI_FAILURE;
@@ -166,32 +153,22 @@ esp_err_t connect_tcp_server(screen_update_callback_t update_screen){
 }
 
 static void handle_server_data(int sock, screen_update_callback_t update_screen){
-    static char readBuffer[1440] = {0};
-    static bool header_parsed = false;
-    static wav_header_t wav_header;
-
-    uint32_t total_bytes = 0; // Total bytes received
-    uint32_t start_time = xTaskGetTickCount(); // Start time for speed calculation
+    static char readBuffer[1440] = {0}; // Match the chunk size
+    uint32_t total_bytes = 0;
+    uint32_t start_time = xTaskGetTickCount();
 
     while (1) {
-        // Clear the buffer and read data from the server
         bzero(readBuffer, sizeof(readBuffer));
         int r = read(sock, readBuffer, sizeof(readBuffer));
         if (r > 0) {
-            total_bytes+=r;
+            total_bytes += r;
             ESP_LOGI(WIFI_TAG, "Received %d bytes from server", r);
 
-            if (!header_parsed) {
-                if (!parse_wav_header((uint8_t *)readBuffer, &wav_header)) {
-                    ESP_LOGE(WIFI_TAG, "Failed to parse WAV header");
-                    break;
-                }
-                header_parsed = true;
-                continue; // Skip the header
-            }
+            // Send AAC data to the decoder (e.g., VS1053 or software decoder)
+            // Example: vs1053_send_data(readBuffer, r);
 
             if (update_screen) {
-                update_screen(readBuffer, "string");
+                update_screen(&total_bytes, "int");
             }
         } else if (r == 0) {
             ESP_LOGI(WIFI_TAG, "Server closed connection");
