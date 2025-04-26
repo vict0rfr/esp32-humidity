@@ -104,31 +104,33 @@ void app_main(void) {
     i2c_master_init();
     u8g2_init();
     esp_err_t status = WIFI_FAILURE;
-
+    
     //initialize storage
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      ret = nvs_flash_init();
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-
-    // connect to wireless AP
-	status = connect_wifi();
-	if (WIFI_SUCCESS != status)
-	{
-		ESP_LOGI(WIFI_TAG, "Failed to associate to AP, dying...");
-        update_screen("WiFi Failed", "string");
-		return;
-	}
     
-	status = connect_tcp_server(update_screen);
-	if (TCP_SUCCESS != status)
-	{
-		ESP_LOGI(WIFI_TAG, "Failed to connect to remote server, dying...");
-        update_screen("TCP Failed", "string");
-		return;
-	}
+    ble_init();
+    
+    // // connect to wireless AP
+	// status = connect_wifi();
+	// if (WIFI_SUCCESS != status)
+	// {
+	// 	ESP_LOGI(WIFI_TAG, "Failed to associate to AP, dying...");
+    //     update_screen("WiFi Failed", "string");
+	// 	// return;
+	// }
+    
+	// status = connect_tcp_server(update_screen);
+	// if (TCP_SUCCESS != status)
+	// {
+	// 	ESP_LOGI(WIFI_TAG, "Failed to connect to remote server, dying...");
+    //     update_screen("TCP Failed", "string");
+	// 	// return;
+	// }
 
     float temperature, humidity;
 
@@ -145,7 +147,7 @@ void app_main(void) {
         } else {
             ESP_LOGE(DHT20_TAG, "Failed to read from DHT20");
         }
-        
+
         vTaskDelay(pdMS_TO_TICKS(1000)); // Wait 2 seconds before next read
     }
 }

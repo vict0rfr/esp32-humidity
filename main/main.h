@@ -38,6 +38,7 @@
 
 #include <u8g2.h>
 #include "wifi_driver.h"
+#include "ble_driver.h"
 
 #include "u8g2_esp32_hal.h"
 
