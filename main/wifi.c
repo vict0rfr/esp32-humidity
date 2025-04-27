@@ -1,4 +1,4 @@
-#include "wifi_driver.h"
+#include "wifi.h"
 
 static uint8_t tries = 0;
 static EventGroupHandle_t wifi_event_group;

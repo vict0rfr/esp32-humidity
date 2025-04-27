@@ -9,7 +9,6 @@
 
 #define SDA_PIN 10
 #define SCL_PIN 11
-#define DHT20_ADDR 0x38
 
 #define I2C_MASTER_FREQ_HZ 100000
 #define I2C_MASTER_NUM I2C_NUM_0
@@ -37,18 +36,15 @@
 #include <nvs_flash.h>
 
 #include <u8g2.h>
-#include "wifi_driver.h"
-#include "ble_driver.h"
+#include "wifi.h"
+#include "ble.h"
+#include "dht20.h"
 
 #include "u8g2_esp32_hal.h"
-
-static const char *DHT20_TAG = "DHT20";
-static const char *BT_TAG = "BT_PAIRING";
 
 static void i2c_master_init(void);
 static void u8g2_init(void);
 void update_screen(void *message, const char *type);
-static esp_err_t dht20_read(float *temperature, float *humidity);
 void app_main(void);
 
 #endif /* MAIN */

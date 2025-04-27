@@ -54,52 +54,6 @@ void update_screen(void *message, const char *type) {
     u8g2_SendBuffer(&u8g2);
 }
 
-// Function to read temperature and humidity from DHT20
-esp_err_t dht20_read(float *temperature, float *humidity) {
-    uint8_t data[7];
-    uint8_t cmd = 0xAC; // Command to trigger measurement
-
-    // Send measurement command
-    i2c_cmd_handle_t cmd_handle = i2c_cmd_link_create();
-    i2c_master_start(cmd_handle);
-    i2c_master_write_byte(cmd_handle, (DHT20_ADDR << 1) | I2C_MASTER_WRITE, true);
-    i2c_master_write_byte(cmd_handle, cmd, true);
-    i2c_master_write_byte(cmd_handle, 0x33, true);
-    i2c_master_write_byte(cmd_handle, 0x00, true);
-    i2c_master_stop(cmd_handle);
-    esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd_handle, pdMS_TO_TICKS(I2C_MASTER_TIMEOUT_MS));
-    i2c_cmd_link_delete(cmd_handle);
-    if (ret != ESP_OK) {
-        ESP_LOGE(DHT20_TAG, "Failed to send measurement command");
-        return ret;
-    }
-
-    // Wait for measurement to complete
-    vTaskDelay(pdMS_TO_TICKS(80));
-
-    // Read data
-    cmd_handle = i2c_cmd_link_create();
-    i2c_master_start(cmd_handle);
-    i2c_master_write_byte(cmd_handle, (DHT20_ADDR << 1) | I2C_MASTER_READ, true);
-    i2c_master_read(cmd_handle, data, sizeof(data) - 1, I2C_MASTER_ACK);
-    i2c_master_read_byte(cmd_handle, data + 6, I2C_MASTER_NACK);
-    i2c_master_stop(cmd_handle);
-    ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd_handle, pdMS_TO_TICKS(I2C_MASTER_TIMEOUT_MS));
-    i2c_cmd_link_delete(cmd_handle);
-    if (ret != ESP_OK) {
-        ESP_LOGE(DHT20_TAG, "Failed to read data");
-        return ret;
-    }
-
-    // Parse temperature and humidity
-    uint32_t raw_humidity = ((data[1] << 16) | (data[2] << 8) | data[3]) >> 4;
-    uint32_t raw_temperature = ((data[3] & 0x0F) << 16) | (data[4] << 8) | data[5];
-    *humidity = (raw_humidity * 100.0) / 1048576.0;
-    *temperature = (raw_temperature * 200.0) / 1048576.0 - 50.0;
-
-    return ESP_OK;
-}
-
 void app_main(void) {
     i2c_master_init();
     u8g2_init();
@@ -113,40 +67,27 @@ void app_main(void) {
     }
     ESP_ERROR_CHECK(ret);
     
-    ble_init();
+    // ble_init();
     
-    // // connect to wireless AP
-	// status = connect_wifi();
-	// if (WIFI_SUCCESS != status)
-	// {
-	// 	ESP_LOGI(WIFI_TAG, "Failed to associate to AP, dying...");
-    //     update_screen("WiFi Failed", "string");
-	// 	// return;
-	// }
+    // connect to wireless AP
+	status = connect_wifi();
+	if (WIFI_SUCCESS != status)
+	{
+		ESP_LOGI(WIFI_TAG, "Failed to associate to AP, dying...");
+        update_screen("WiFi Failed", "string");
+		// return;
+	}
     
-	// status = connect_tcp_server(update_screen);
-	// if (TCP_SUCCESS != status)
-	// {
-	// 	ESP_LOGI(WIFI_TAG, "Failed to connect to remote server, dying...");
-    //     update_screen("TCP Failed", "string");
-	// 	// return;
-	// }
-
-    float temperature, humidity;
+	status = connect_tcp_server(update_screen);
+	if (TCP_SUCCESS != status)
+	{
+		ESP_LOGI(WIFI_TAG, "Failed to connect to remote server, dying...");
+        update_screen("TCP Failed", "string");
+		// return;
+	}
 
     while (1) {
-        if (dht20_read(&temperature, &humidity) == ESP_OK) {
-            u8g2_ClearBuffer(&u8g2);
-            char temp_str[16], hum_str[16];
-            snprintf(temp_str, sizeof(temp_str), "Temp: %.2fC", temperature);
-            snprintf(hum_str, sizeof(hum_str), "Hum: %.2f%%", humidity);
-            u8g2_SetFont(&u8g2, u8g2_font_ncenB12_tr);
-            u8g2_DrawStr(&u8g2, 0, 15, temp_str);
-            u8g2_DrawStr(&u8g2, 0, 35, hum_str);
-            u8g2_SendBuffer(&u8g2);
-        } else {
-            ESP_LOGE(DHT20_TAG, "Failed to read from DHT20");
-        }
+        dht20_display(&u8g2);
 
         vTaskDelay(pdMS_TO_TICKS(1000)); // Wait 2 seconds before next read
     }

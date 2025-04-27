@@ -1,5 +1,5 @@
-#ifndef BLE_DRIVER
-#define BLE_DRIVER
+#ifndef BLE
+#define BLE
 
 #include "esp_bt.h"
 #include "esp_bt_main.h"
@@ -12,4 +12,4 @@ static void ble_gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
 esp_err_t configure_ble5_advertising(void);
 esp_err_t start_ble5_advertising(void);
 
-#endif /* BLE_DRIVER */
+#endif /* BLE */

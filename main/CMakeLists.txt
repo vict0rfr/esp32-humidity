@@ -1,4 +1,4 @@
-idf_component_register(SRCS "main.c" "wifi_driver.c" "ble_driver.c"
+idf_component_register(SRCS "main.c" "wifi.c" "ble.c" "dht20.c"
                     INCLUDE_DIRS "." "${IDF_PATH}/components/bt/include/esp32c6/include/"
                                      "${IDF_PATH}/components/bt/host/nimble/nimble/nimble/include/"
                                      "${IDF_PATH}/components/bt/porting/npl/freertos/include/"

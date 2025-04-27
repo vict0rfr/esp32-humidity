@@ -1,4 +1,4 @@
-#include "ble_driver.h" // Assuming you have this header
+#include "ble.h" // Assuming you have this header
 #include <stdint.h>
 #include <string.h>
 #include <stdbool.h>
@@ -21,6 +21,23 @@
 #define EXT_SCAN_DURATION     0 // Scan indefinitely until stopped
 #define EXT_SCAN_PERIOD       0 // Continuous scanning
 
+#define APPLE_MANUFACTURER_ID 0x004C // Apple's Bluetooth Manufacturer ID
+
+// --- Connection Parameters (Similar to the original example) ---
+const esp_ble_conn_params_t phy_1m_conn_params = {
+    .scan_interval = 0x40, // N * 0.625ms = 40ms
+    .scan_window = 0x40,   // N * 0.625ms = 40ms
+    .interval_min = 80,    // N * 1.25ms = 100ms
+    .interval_max = 80,    // N * 1.25ms = 100ms
+    .latency = 0,
+    .supervision_timeout = 400, // N * 10ms = 4000ms
+    .min_ce_len  = 0,
+    .max_ce_len = 0,
+};
+// Define phy_2m_conn_params and phy_coded_conn_params if you intend to use those PHYs
+// const esp_ble_conn_params_t phy_2m_conn_params = { ... };
+// const esp_ble_conn_params_t phy_coded_conn_params = { ... };
+
 // --- Globals adapted from example ---
 #define PROFILE_NUM         1
 #define PROFILE_A_APP_ID    0
@@ -31,7 +48,6 @@ struct gattc_profile_inst {
     uint16_t gattc_if;
     uint16_t app_id;
     uint16_t conn_id;
-    // Removed service/char handles as we are not discovering them
     esp_bd_addr_t remote_bda;
 };
 
@@ -43,7 +59,6 @@ static struct gattc_profile_inst gl_profile_tab[PROFILE_NUM] = {
 };
 
 static bool is_connecting = false; // Flag to prevent multiple connection attempts
-static const char remote_device_name[] = "AirPods"; // Target device name
 
 // Extended Scan Parameters (modify interval/window as needed)
 static esp_ble_ext_scan_params_t ext_scan_params = {
@@ -152,55 +167,72 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
         ESP_LOGI(GATTC_TAG, "Extended scan started successfully");
         break;
     case ESP_GAP_BLE_EXT_ADV_REPORT_EVT: {
-        uint8_t *adv_name = NULL;
-        uint8_t adv_name_len = 0;
+        uint8_t *mfg_data = NULL;
+        uint8_t mfg_data_len = 0;
 
-        // Log basic info about the report FIRST
-        ESP_LOGI(GATTC_TAG, "Ext Adv Report: Addr "ESP_BD_ADDR_STR", RSSI %d",
-                 ESP_BD_ADDR_HEX(param->ext_adv_report.params.addr),
-                 param->ext_adv_report.params.rssi);
+        // Parse Manufacturer Specific Data
+        mfg_data = esp_ble_resolve_adv_data(param->ext_adv_report.params.adv_data,
+                                        ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, &mfg_data_len);
 
-        // Parse complete name from advertising data
-        adv_name = esp_ble_resolve_adv_data(param->ext_adv_report.params.adv_data,
-                                            ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
+        bool is_apple_device = false;
+        if (mfg_data != NULL && mfg_data_len >= 2) {
+            uint16_t manufacturer_id = (mfg_data[1] << 8) | mfg_data[0]; // Little-endian format
 
-        // *** ADD THIS LOGGING BLOCK ***
-        if (adv_name != NULL) {
-            ESP_LOGI(GATTC_TAG, "  -> Parsed Name: %.*s (Length: %d)", adv_name_len, (char*)adv_name, adv_name_len);
-        } else {
-            // Try parsing short name if complete name wasn't found
-            adv_name = esp_ble_resolve_adv_data(param->ext_adv_report.params.adv_data,
-                                                ESP_BLE_AD_TYPE_NAME_SHORT, &adv_name_len);
-            if (adv_name != NULL) {
-                 ESP_LOGI(GATTC_TAG, "  -> Parsed Short Name: %.*s (Length: %d)", adv_name_len, (char*)adv_name, adv_name_len);
+            if (manufacturer_id == APPLE_MANUFACTURER_ID) {
+                ESP_LOGI(GATTC_TAG, "Ext Adv Report: Addr "ESP_BD_ADDR_STR", RSSI %d",
+                                        ESP_BD_ADDR_HEX(param->ext_adv_report.params.addr),
+                                        param->ext_adv_report.params.rssi);
+                is_apple_device = true;
+                ESP_LOGI(GATTC_TAG, "  -> Apple Device Found (Mfg ID: 0x%04X)", manufacturer_id);
+                ESP_LOG_BUFFER_HEX(GATTC_TAG, mfg_data, mfg_data_len); // Log the specific data payload
             } else {
-                 ESP_LOGI(GATTC_TAG, "  -> Name not found in advertisement data.");
+                ESP_LOGI(GATTC_TAG, "  -> Non-Apple Mfg Data Found (ID: 0x%04X)", manufacturer_id);
             }
+        } else {
+                ESP_LOGI(GATTC_TAG, "  -> Manufacturer data not found.");
+                // Also check for name just in case
+                uint8_t *adv_name = NULL;
+                uint8_t adv_name_len = 0;
+                adv_name = esp_ble_resolve_adv_data(param->ext_adv_report.params.adv_data, ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
+                if (adv_name != NULL) { ESP_LOGI(GATTC_TAG, "  -> Found Name: %.*s", adv_name_len, (char*)adv_name); }
         }
-        // *** END OF ADDED BLOCK ***
 
-
-        // Check if name matches and we are not already trying to connect
-        // Reset adv_name pointer in case only short name was found above, ensure we use the correct one for comparison
-        adv_name = esp_ble_resolve_adv_data(param->ext_adv_report.params.adv_data,
-                                            ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len); // Re-parse complete name for check
-
-        if (!is_connecting && adv_name != NULL && adv_name_len == strlen(remote_device_name) &&
-            strncmp((char *)adv_name, remote_device_name, adv_name_len) == 0)
+        // --- Connection Logic ---
+        if (!is_connecting && is_apple_device)
         {
-            ESP_LOGI(GATTC_TAG, ">>> MATCH FOUND! Target device: %s ("ESP_BD_ADDR_STR")", remote_device_name, ESP_BD_ADDR_HEX(param->ext_adv_report.params.addr));
-            is_connecting = true; // Set flag to true
+            ESP_LOGI(GATTC_TAG, ">>> APPLE DEVICE MATCH FOUND! Attempting connection to "ESP_BD_ADDR_STR, ESP_BD_ADDR_HEX(param->ext_adv_report.params.addr));
+            is_connecting = true;
             esp_ble_gap_stop_ext_scan(); // Stop scanning
 
-            // Initiate connection (using simple open, not enhanced from example)
-            ESP_LOGI(GATTC_TAG, "Stopping scan and attempting to connect...");
-            esp_ble_gattc_open(gl_profile_tab[PROFILE_A_APP_ID].gattc_if,
-                               param->ext_adv_report.params.addr,
-                               param->ext_adv_report.params.addr_type,
-                               true); // true = auto connect
+            // Initiate connection using enhanced open
+            ESP_LOGI(GATTC_TAG, "Stopping scan and attempting enhanced connect...");
+
+            esp_ble_gatt_creat_conn_params_t creat_conn_params = {0};
+            memcpy(&creat_conn_params.remote_bda, param->ext_adv_report.params.addr, ESP_BD_ADDR_LEN);
+            creat_conn_params.remote_addr_type = param->ext_adv_report.params.addr_type;
+            creat_conn_params.own_addr_type = BLE_ADDR_TYPE_PUBLIC; // Or BLE_ADDR_TYPE_RPA_PUBLIC if using privacy
+            creat_conn_params.is_direct = false; // Usually false for connections from general advertising
+            // Set is_aux based on the report type if needed, true is often correct for extended reports
+            creat_conn_params.is_aux = true;
+            // Specify which PHYs to attempt connection on (1M is usually safest to start)
+            creat_conn_params.phy_mask = ESP_BLE_PHY_1M_PREF_MASK; // | ESP_BLE_PHY_2M_PREF_MASK | ESP_BLE_PHY_CODED_PREF_MASK;
+            creat_conn_params.phy_1m_conn_params = &phy_1m_conn_params;
+            // Assign other PHY params if using them in the mask
+            // creat_conn_params.phy_2m_conn_params = &phy_2m_conn_params;
+            // creat_conn_params.phy_coded_conn_params = &phy_coded_conn_params;
+
+            esp_err_t open_ret = esp_ble_gattc_enh_open(gl_profile_tab[PROFILE_A_APP_ID].gattc_if, &creat_conn_params);
+
+            if (open_ret != ESP_OK) {
+                ESP_LOGE(GATTC_TAG, "esp_ble_gattc_enh_open failed: %s", esp_err_to_name(open_ret));
+                is_connecting = false; // Reset flag on immediate failure
+                // Optionally restart scanning here
+                // esp_ble_gap_start_ext_scan(EXT_SCAN_DURATION, EXT_SCAN_PERIOD);
+            }
         }
         break;
-        }
+    } // End ESP_GAP_BLE_EXT_ADV_REPORT_EVT case
+
     case ESP_GAP_BLE_EXT_SCAN_STOP_COMPLETE_EVT:
         if (param->ext_scan_stop.status != ESP_BT_STATUS_SUCCESS){
             ESP_LOGE(GATTC_TAG, "Extended scan stop failed, status %x", param->ext_scan_stop.status);
@@ -221,18 +253,6 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
     case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT: // Assuming you might still advertise
          ESP_LOGI(BLE_TAG, "Advertising stopped");
          break;
-
-    // --- Removed Security Related Events ---
-    // case ESP_GAP_BLE_PASSKEY_REQ_EVT:
-    // case ESP_GAP_BLE_OOB_REQ_EVT:
-    // case ESP_GAP_BLE_LOCAL_IR_EVT:
-    // case ESP_GAP_BLE_LOCAL_ER_EVT:
-    // case ESP_GAP_BLE_SEC_REQ_EVT:
-    // case ESP_GAP_BLE_NC_REQ_EVT:
-    // case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
-    // case ESP_GAP_BLE_KEY_EVT:
-    // case ESP_GAP_BLE_AUTH_CMPL_EVT:
-
     default:
         ESP_LOGE(GATTC_TAG, "Unhandled GAP event: %d", event);
         break;
@@ -268,21 +288,10 @@ static void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp
     } while (0);
 }
 
-
-// --- Main Initialization Function ---
 void ble_init(void) {
     esp_err_t ret;
 
     ESP_LOGI(BLE_TAG, "Starting BLE Initialization...");
-
-    // Optional: Initialize NVS (needed by BLE stack for bonding info, etc.)
-    // ret = nvs_flash_init();
-    // if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-    //     ESP_ERROR_CHECK(nvs_flash_erase());
-    //     ret = nvs_flash_init();
-    // }
-    // ESP_ERROR_CHECK( ret );
-
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
 
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -302,6 +311,20 @@ void ble_init(void) {
     if (ret) { ESP_LOGE(GATTC_TAG, "Enable bluedroid failed: %s", esp_err_to_name(ret)); return; }
     ESP_LOGI(BLE_TAG, "Bluedroid Enabled");
 
+    // --- ADD SECURITY INITIALIZATION ---
+    ESP_LOGI(BLE_TAG, "Setting BLE Security Parameters...");
+    esp_ble_auth_req_t auth_req = ESP_LE_AUTH_REQ_SC_MITM_BOND; // Use Secure Connections, MITM protection (if possible), and Bonding
+    esp_ble_io_cap_t iocap = ESP_IO_CAP_NONE; // No Input, No Output capability
+    uint8_t key_size = 16;      // Minimum encryption key size = 7, Max=16
+    uint8_t init_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK; // Which keys to distribute
+    uint8_t rsp_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;  // Which keys to accept
+    esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(uint8_t));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &key_size, sizeof(uint8_t));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_SET_INIT_KEY, &init_key, sizeof(uint8_t));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &rsp_key, sizeof(uint8_t));
+    // --- END SECURITY INITIALIZATION ---
+
     // Register GAP callback 
     ret = esp_ble_gap_register_callback(esp_gap_cb);
     if (ret){ ESP_LOGE(GATTC_TAG, "GAP register error, error code = %x", ret); return; }
@@ -319,31 +342,12 @@ void ble_init(void) {
     ESP_LOGI(BLE_TAG, "GATTC App Registered");
 
     // Set local MTU size
-    ret = esp_ble_gatt_set_local_mtu(200); // Example uses 200
+    ret = esp_ble_gatt_set_local_mtu(200);
     if (ret){ ESP_LOGE(GATTC_TAG, "Set local MTU failed, error code = %x", ret); }
     ESP_LOGI(BLE_TAG, "Local MTU Set");
 
-    // --- Security parameters removed ---
-
-    // Scan setup will be triggered by ESP_GATTC_REG_EVT -> esp_ble_gap_config_local_privacy -> ESP_GAP_BLE_SET_LOCAL_PRIVACY_COMPLETE_EVT
-    // Or simplify: Start scan setup directly after GATTC registration
     ESP_LOGI(BLE_TAG, "Configuring local privacy to trigger scan setup...");
     esp_ble_gap_config_local_privacy(true); // Trigger the sequence leading to scanning
 
-    // --- Advertising calls removed (unless you need them) ---
-    // configure_ble5_advertising();
-    // start_ble5_advertising();
-
     ESP_LOGI(BLE_TAG, "BLE Initialization Complete. Waiting for scan to start...");
 }
-
-// --- Advertising functions (keep if needed, otherwise remove) ---
-/*
-esp_err_t configure_ble5_advertising(void) {
-    // ... your advertising config ...
-}
-
-esp_err_t start_ble5_advertising(void) {
-    // ... your advertising start ...
-}
-*/
