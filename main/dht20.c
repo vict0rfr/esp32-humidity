@@ -61,8 +61,8 @@ esp_err_t dht20_display(u8g2_t *u8g2) {
 
     if (ret == ESP_OK) {
         char temp_str[16], hum_str[16];
-        snprintf(temp_str, sizeof(temp_str), "Temp: %.2fC", temperature); // Use .1f for brevity?
-        snprintf(hum_str, sizeof(hum_str), "Hum:  %.2f%%", humidity); // Use .1f for brevity?
+        snprintf(temp_str, sizeof(temp_str), "Temp: %.2fC", temperature);
+        snprintf(hum_str, sizeof(hum_str), "Hum:  %.2f%%", humidity);
         u8g2_DrawStr(u8g2, 0, 15, temp_str);
         u8g2_DrawStr(u8g2, 0, 35, hum_str);
     } else {
