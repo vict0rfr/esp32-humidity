@@ -26,6 +26,7 @@
 #include <driver/i2c.h>
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
+#include <driver/uart.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
@@ -44,7 +45,11 @@
 
 static void i2c_master_init(void);
 static void u8g2_init(void);
+static void uart_init(void);
 void update_screen(void *message, const char *type);
+static void draw_main_menu(void);
+static void draw_settings_menu(void);
+static void handle_input(const uint8_t* data, int len);
 void app_main(void);
 
 #endif /* MAIN */
